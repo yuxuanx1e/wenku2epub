@@ -577,7 +577,7 @@ def create_epub(title, author, chapter_list):
     navpoints = ''
 
     # Add chapter name to table of content
-    for i, (chapter_name, chapter) in enumerate(chapter_list.items()):
+    for i, chapter_name in enumerate(chapter_list.keys()):
         navpoints += '\t\t<navPoint id="chapter_%s">\n' % (i + 1)
         navpoints += '\t\t\t<navLabel>\n'
         navpoints += '\t\t\t\t<text>%s</text>\n' % chapter_name
@@ -615,7 +615,7 @@ def create_epub(title, author, chapter_list):
     ol_content = ""
 
     # Add chapter names
-    for i, (chapter_name, chapter) in enumerate(chapter_list.items()):
+    for i, chapter_name in enumerate(chapter_list.keys()):
         ol_content += '\t\t\t\t<li>\n'
         ol_content += '\t\t\t\t\t<a href="chapter_%s.xhtml">%s</a>\n' % (i + 1, chapter_name)
         ol_content += '\t\t\t\t</li>\n'
