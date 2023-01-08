@@ -11,36 +11,37 @@ import os
 import shutil
 from textwrap import dedent
 from datetime import datetime
-
 import zipfile
-import unicodedata
 
 
-def scrape_wenku(index_url):
+def create_temp_dir():
+    dir_list = ["../temp", "../book", "../book/META-INF", "../book/OEBPS"]
+    for directory in dir_list:
+        if os.path.exists(directory):
+            shutil.rmtree(directory)
+        os.makedirs(directory)
+        print("create_temp_dir: Directory '%s' created" % directory)
+
+
+def delete_temp_dir():
+    # Delete temp folders '../book' and '../temp'
+    dir_list = ["../temp", "../book"]
+    for directory in dir_list:
+        shutil.rmtree(directory, ignore_errors=False, onerror=None)
+        print("delete_temp_dir: Directory '%s' deleted" % directory)
+
+
+def scrape_book(volume_name, chapter_list, cover_file):
     """
     Scrape book content from https://www.wenku8.net/
 
-    @type index_url: str
-    @param index_url: URL to the book index page
+    @type cover_file: str
+    @param cover_file: File name for the cover.jpg
+    @type chapter_list: dict
+    @param chapter_list: chapter names and URLs
     """
 
-    print("scape_wenku: Start web scraping from Wenku...")
-
-    temp_dir = "../temp"
-    if os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir)
-    os.mkdir(temp_dir)
-    print("scrape_wenku: Directory '% s' created" % temp_dir)
-
-    # Default location to save files
-    index_file = '../temp/index.html'  # File name
-    cover_file = '../temp/cover.jpg'
-
-    # Download index page
-    download_html(index_url, index_file)
-
-    # Extract title, author, chapter names and links from the index page
-    title, author, chapter_list = extract_index(index_url, index_file)
+    print("scape_book: Start web scraping from Wenku for book '%s' ..." % volume_name)
 
     # Download all chapters
     for chapter_name, chapter_url in chapter_list.items():
@@ -51,8 +52,8 @@ def scrape_wenku(index_url):
         chapter_list[chapter_name] = chapter_file
 
     # Check if '插图' chapter exists
-    if chapter_list['插图'] is not None:
-        print("scrape_wenku: Found '插图' chapter!")
+    if '插图' in chapter_list:
+        print("scrape_book: Found '插图' chapter!")
 
         # Get all image URLs from '插图' chapter
         image_url = extract_images(chapter_list['插图'])
@@ -74,7 +75,7 @@ def scrape_wenku(index_url):
     for chapter_name, chapter_file in chapter_list.items():
         clean_chapter(chapter_file, chapter_name)
 
-    return title, author, chapter_list
+    return chapter_list
 
 
 def download_html(html_url, html_file):
@@ -103,7 +104,7 @@ def download_html(html_url, html_file):
     except Exception as exc:
         print('download_html: There was a problem: %s' % exc)  # Print error msg
 
-    #page.encoding = 'gb2312'  # utf-8 decoding didn't work...
+    # page.encoding = 'gb2312'  # utf-8 decoding didn't work...
     page.encoding = 'gbk'  # utf-8 decoding didn't work...
     page = page.text
 
@@ -150,11 +151,24 @@ def get_cover():
 
     cover_url = input("URL to cover image: ")
 
-    while validators.url(cover_url) and is_url_image(cover_url):
+    while not validators.url(cover_url) or not is_url_image(cover_url):
         print("Invalid URL entered! Please try again")
         cover_url = input("URL to cover image: ")
 
     return cover_url
+
+def get_index_url():
+    """
+    Ask user to enter url to the index page of the book
+    """
+
+    index_url = input("get_index_url: Please enter URL of the index page of the book:")
+
+    while not validators.url(index_url):
+        print("Invalid URL entered! Please try again")
+        index_url = input("URL to index page: ")
+
+    return index_url
 
 
 def is_url_image(image_url):
@@ -172,8 +186,8 @@ def is_url_image(image_url):
 
     image_formats = ("image/png", "image/jpeg", "image/jpg")
     r = requests.head(image_url, headers=headers)
-    print(r.headers["content-type"])
     if r.headers["content-type"] in image_formats:
+        print("is_url_image: Success! Entered URL leads to a " + r.headers["content-type"])
         return True
     else:
         print("is_url_image: Entered URL does not lead to an image!")
@@ -249,7 +263,7 @@ def extract_index(index_url, index_file):
     @param index_file: html file name containing the index page
     """
 
-    print("extract_index: Extracting title, author and chapters from %s ..." % index_file)
+    print("extract_index: Extracting title, author and volume information from %s ..." % index_file)
     # Open file in read mode 'r'
     # The file has been encoded using utf8
     raw = open(index_file, 'r', encoding='utf-8-sig')
@@ -266,19 +280,101 @@ def extract_index(index_url, index_file):
     title = soup.find(id='title').getText().strip()
     author = soup.find(id='info').getText().strip('作者：').strip()
 
-    # Find all the chapters stored inside <a> tags in a table
-    chapters = soup.select('td a')
+    # Find the starting chapter names in each volume
+    table_elem = soup.select('td')
 
-    chapter_list = {}
+    # Remove empty td tags from resultset
+    tag = '<td class="ccss">\u00a0</td>'
+    unwanted = BeautifulSoup(tag, "html.parser").td
+
+    nbsp_count = 0
+
+    for tag in table_elem:
+        if tag.text == '\u00a0':
+            nbsp_count += 1
+
+    for _ in range(nbsp_count):
+        table_elem.remove(unwanted)
+
+    # Get the position of the volume headings
+    volume_indices = [i for i, td in enumerate(table_elem) if "vcss" in str(td)]
+    volume_indices.append((len(table_elem)))
+
+    # Get volume names
+    volume_names = [vol.contents[0] for vol in soup.findAll("td", attrs={'class': "vcss"})]
+
+    # Multiple volumes found
+    if len(volume_names) > 1:
+        # Ask user to choose which volume(s) to download
+        volume_indices, volume_names = choose_volume(volume_indices, volume_names)
+
+        # Take only the first part of the volume names e.g. '第一卷'
+        volume_names = [' ' + name.split()[0] for name in volume_names]
+
+    # Only 1 volume found
+    else:
+        volume_names = ['']
+
+    # Store volume name, chapter name and chapter URL in nested dictionary
+    volume_chapters = {}
     base_link = index_url.replace('index.htm', '')
 
-    for chapter in chapters:
-        chapter_list[chapter.getText().strip()] = base_link + chapter.get('href')
+    for i in range(len(volume_indices) - 1):
+        start_index = volume_indices[i] + 1
+        end_index = volume_indices[i + 1]
+        chapter_list = {}
 
-    # close the file
+        for k in range(start_index, end_index):
+            chapter = table_elem[k].a
+            chapter_list[chapter.getText().strip()] = base_link + chapter.get('href')
+
+        volume_chapters[title + volume_names[i]] = chapter_list
+
     raw.close()
 
-    return title, author, chapter_list
+    return title, author, volume_chapters
+
+
+def choose_volume(volume_indices, volume_names):
+    """
+    Multiple volumes found, ask user to select which volume(s) to download
+
+    @type volume_names: list
+    @param volume_names: list of volume names
+    :param volume_indices:
+    """
+
+    print("choose_volume: Multiple volumes found! Here is a list of them:")
+    volume_info = [f'{index}. {url}' for index, url in enumerate(volume_names)]
+    print(*volume_info, sep="\n")
+    print("choose_volume: Please choose which volume(s) to download. Input must be single number of a range, e.g. 2-4")
+    chosen_indices = input("Enter volume index/indices: ")
+    chosen_indices = chosen_indices.split('-')
+    chosen_indices = [int(index) for index in chosen_indices]
+
+    while True:
+
+        if len(chosen_indices) <= 2 and all(0 <= index < len(volume_names) for index in chosen_indices):
+            break
+
+        print("Invalid index number, please choose from 0 to %d. Input must be single number or in the form of "
+              "'start-end'" % (len(volume_names) - 1))
+        chosen_indices = input("Enter volume index/indices: ")
+        chosen_indices = chosen_indices.split('-')
+        chosen_indices = [int(index) for index in chosen_indices]
+
+    start_volume = chosen_indices[0]
+
+    if len(chosen_indices) == 2:
+        end_volume = chosen_indices[1]
+    else:
+        end_volume = chosen_indices[0]
+
+    # Re-compute the required volume indices and names
+    volume_indices = [volume_indices[i] for i in range(start_volume, end_volume + 2)]
+    volume_names = [volume_names[i] for i in range(start_volume, end_volume + 1)]
+
+    return volume_indices, volume_names
 
 
 def clean_chapter(chapter_file, chapter_name):
@@ -317,8 +413,6 @@ def clean_chapter(chapter_file, chapter_name):
     text = text.replace('本文来自 轻小说文库(http://www.wenku8.com)', '').replace(
         '最新最全的日本动漫轻小说 轻小说文库(http://www.wenku8.com) 为你一网打尽！', '')
 
-
-
     # Prevent wrong formatting, strip white spaces
     text = text.lstrip().rstrip()
 
@@ -353,13 +447,6 @@ def clean_chapter(chapter_file, chapter_name):
 
 def create_epub(title, author, chapter_list):
     print("create_epub: starting ...")
-
-    dir_list = ["../book", "../book/META-INF", "../book/OEBPS"]
-    for dir in dir_list:
-        if os.path.exists(dir):
-            shutil.rmtree(dir)
-        os.makedirs(dir)
-        print("create_epub: Directory '%s' created" % dir)
 
     # mimetype file (same for every epub)
     file = open("../book/mimetype", 'w')
@@ -536,9 +623,7 @@ def create_epub(title, author, chapter_list):
 
     compress_epub(title)
 
-    # Delete temp folders
-    shutil.rmtree("../book", ignore_errors=False, onerror=None)
-    shutil.rmtree("../temp", ignore_errors=False, onerror=None)
+    print("create_epub: Finish EPUB conversion and download for book '%s'!" % title)
 
 
 def compress_epub(title):

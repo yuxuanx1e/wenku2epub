@@ -8,20 +8,42 @@ import functions
 
 
 def main():
-    print("main: Hello World!")
-    #index_url = 'https://www.wenku8.net/novel/3/3299/index.htm'
-    index_url = 'https://www.wenku8.net/novel/3/3348/index.htm'
-    title, author, chapter_list = functions.scrape_wenku(index_url)
+    print("main: Starting wenku2epub programme ...")
 
-    # title = "我想成为你的眼泪"
-    # author = "四季大雅"
-    # chapter_list = {'序章': '../temp/序章.html', '第一话': '../temp/第一话.html', '第二话': '../temp/第二话.html',
-    #                 '第三话': '../temp/第三话.html', '第四话': '../temp/第四话.html', '第五话': '../temp/第五话.html',
-    #                 '第六话': '../temp/第六话.html', '第七话': '../temp/第七话.html', '第八话': '../temp/第八话.html',
-    #                 '第九话': '../temp/第九话.html', '尾声': '../temp/尾声.html'}
+    # index_url = 'https://www.wenku8.net/novel/3/3051/index.htm'
+    # index_url = 'https://www.wenku8.net/novel/2/2580/index.htm'
 
-    functions.create_epub(title, author, chapter_list)
+    # Ask user to enter the URL to the index page of the book
+    index_url = functions.get_index_url()
 
+    # Default location to save files
+    index_file = '../temp/index.html'  # File name
+    cover_file = '../temp/cover.jpg'
+
+    # Create temp directories
+    functions.create_temp_dir()
+
+    # Download index page
+    functions.download_html(index_url, index_file)
+
+    # Extract key information from the index.html file
+    title, author, volume_chapters = functions.extract_index(index_url, index_file)
+
+    # Loop through each volume
+    for i, (volume_name, chapter_list) in enumerate(volume_chapters.items()):
+
+        # Get book contents: chapters and cover image
+        chapter_list = functions.scrape_book(volume_name, chapter_list, cover_file)
+
+        # Create epub file
+        functions.create_epub(volume_name, author, chapter_list)
+
+        if i == len(volume_chapters) - 1:
+            # Delete temp directories
+            functions.delete_temp_dir()
+        else:
+            # Remove and re-create temp directories
+            functions.create_temp_dir()
 
 
 # Run main program
