@@ -5,13 +5,15 @@
 
 # Import Dependencies
 import functions
+import os
 
 
 def main():
     print("main: Starting wenku2epub programme ...")
 
-    # index_url = 'https://www.wenku8.net/novel/3/3051/index.htm'
-    # index_url = 'https://www.wenku8.net/novel/2/2580/index.htm'
+    # Change current working directory
+    path = 'C:/Users/yuxua/OneDrive - University College Dublin/Documents/wenku2epub/src'
+    os.chdir(path)
 
     # Ask user to enter the URL to the index page of the book
     index_url = functions.get_index_url()
