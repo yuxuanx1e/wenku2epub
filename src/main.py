@@ -47,6 +47,8 @@ def main():
             # Remove and re-create temp directories
             functions.create_temp_dir()
 
+    print("main: Successfully created and downloaded all epub files, exiting ...")
+
 
 # Run main program
 if __name__ == "__main__":
