@@ -1,7 +1,7 @@
-# This is the main program to generate epub from website
+# This is the main program to generate epub from wenku8
 # Author: Yuxuan Xie
 # Version: 1
-# Date: 12/ 12/ 2022
+# Date: 08/ 01/ 2023
 
 # Import Dependencies
 import functions
@@ -47,6 +47,7 @@ def main():
             # Remove and re-create temp directories
             functions.create_temp_dir()
 
+    # Exit message
     print("main: Successfully created and downloaded all epub files, exiting ...")
 
 

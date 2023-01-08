@@ -15,6 +15,10 @@ import zipfile
 
 
 def create_temp_dir():
+    """
+    Create temporary directories, if directories already exists, then it will be removed
+    """
+
     dir_list = ["../temp", "../book", "../book/META-INF", "../book/OEBPS"]
     for directory in dir_list:
         if os.path.exists(directory):
@@ -24,6 +28,10 @@ def create_temp_dir():
 
 
 def delete_temp_dir():
+    """
+    Permanently delete temporary directories
+    """
+
     # Delete temp folders '../book' and '../temp'
     dir_list = ["../temp", "../book"]
     for directory in dir_list:
@@ -33,12 +41,14 @@ def delete_temp_dir():
 
 def scrape_book(volume_name, chapter_list, cover_file):
     """
-    Scrape book content from https://www.wenku8.net/
+    Scrape book content from https://www.wenku8.net/ (chapter html and cover image)
 
-    @type cover_file: str
-    @param cover_file: File name for the cover.jpg
+    @type volume_name: str
+    @param volume_name: Novel name of this volume
     @type chapter_list: dict
     @param chapter_list: chapter names and URLs
+    @type cover_file: str
+    @param chapter_list: default file location and name for cover image ''../temp/cover.jpg''
     """
 
     print("scape_book: Start web scraping from Wenku for book '%s' ..." % volume_name)
@@ -93,8 +103,6 @@ def download_html(html_url, html_file):
 
     print("download_html: Fetching %s ..." % html_url)
 
-    # request.get(link) gets the website
-    # .text limits the variable to only html code
     # page stores website's HTML code
     page = requests.get(html_url)
 
@@ -104,7 +112,6 @@ def download_html(html_url, html_file):
     except Exception as exc:
         print('download_html: There was a problem: %s' % exc)  # Print error msg
 
-    # page.encoding = 'gb2312'  # utf-8 decoding didn't work...
     page.encoding = 'gbk'  # utf-8 decoding didn't work...
     page = page.text
 
@@ -157,6 +164,7 @@ def get_cover():
 
     return cover_url
 
+
 def get_index_url():
     """
     Ask user to enter url to the index page of the book
@@ -196,7 +204,7 @@ def is_url_image(image_url):
 
 def download_image(image_url, image_file):
     """
-    Fetch image from a URL link and save to local
+    Fetch image from a URL link and save to local disk
 
     @type image_url: str
     @param image_url: url of image to be used as cover
@@ -233,7 +241,6 @@ def extract_images(image_page):
     print("extract_images: Extracting image URLs from '插图' chapter...")
 
     # Open file in read mode 'r'
-    # The file has been encoded using utf8
     raw = open(image_page, 'r', encoding='utf-8-sig')
 
     # Create Beautiful soup object
@@ -255,7 +262,7 @@ def extract_images(image_page):
 
 def extract_index(index_url, index_file):
     """
-    Extract the book title, author and chapter names from the downloaded html file
+    Extract the book title, author, chapter names and urls from  'index.html' file
 
     @type index_url: str
     @param index_url: url to the index page
@@ -264,26 +271,24 @@ def extract_index(index_url, index_file):
     """
 
     print("extract_index: Extracting title, author and volume information from %s ..." % index_file)
+
     # Open file in read mode 'r'
-    # The file has been encoded using utf8
     raw = open(index_file, 'r', encoding='utf-8-sig')
 
     # Create Beautiful soup object
-    # html.parser is the built-in parser
     soup = BeautifulSoup(raw, 'html.parser')
 
     # Book title is located in a div element
     # with id = 'title' 
     # Author is located in a div element
     # with id = 'info'
-    # Only one element with this item property, use find()
     title = soup.find(id='title').getText().strip()
     author = soup.find(id='info').getText().strip('作者：').strip()
 
-    # Find the starting chapter names in each volume
+    # Find all table elements containing either chapter links or volume names
     table_elem = soup.select('td')
 
-    # Remove empty td tags from resultset
+    # Remove empty td tags from result set
     tag = '<td class="ccss">\u00a0</td>'
     unwanted = BeautifulSoup(tag, "html.parser").td
 
@@ -306,6 +311,7 @@ def extract_index(index_url, index_file):
     # Multiple volumes found
     if len(volume_names) > 1:
         # Ask user to choose which volume(s) to download
+        # Update volume indices and names lists to include only wanted volumes
         volume_indices, volume_names = choose_volume(volume_indices, volume_names)
 
         # Take only the first part of the volume names e.g. '第一卷'
@@ -313,6 +319,7 @@ def extract_index(index_url, index_file):
 
     # Only 1 volume found
     else:
+        # Volume name is simply book title, with nothing appended
         volume_names = ['']
 
     # Store volume name, chapter name and chapter URL in nested dictionary
@@ -339,9 +346,10 @@ def choose_volume(volume_indices, volume_names):
     """
     Multiple volumes found, ask user to select which volume(s) to download
 
-    @type volume_names: list
-    @param volume_names: list of volume names
-    :param volume_indices:
+    @type volume_indices: list
+    @param volume_indices: indices of volume names in the table_elem list
+     @type volume_names: list
+    @param volume_names: volume names
     """
 
     print("choose_volume: Multiple volumes found! Here is a list of them:")
@@ -353,12 +361,14 @@ def choose_volume(volume_indices, volume_names):
     chosen_indices = [int(index) for index in chosen_indices]
 
     while True:
-
+        # Check if entered numbers are within the expected range
         if all(0 <= index < len(volume_names) for index in chosen_indices):
             if len(chosen_indices) == 1:
                 break
+            # if 'start-end' input format used, make sure start index is less or equal to end index
             elif len(chosen_indices) == 2 and chosen_indices[0] <= chosen_indices[1]:
                 break
+        # Invalid input, ask for re-enter
         print("Invalid index number, please choose from 0 to %d. Input must be single number or in the form of "
               "'start-end'" % (len(volume_names) - 1))
         chosen_indices = input("Enter volume index/indices: ")
@@ -392,39 +402,35 @@ def clean_chapter(chapter_file, chapter_name):
     print("clean_chapter: Clean up html code in %s ..." % chapter_file)
 
     # Open file in read mode 'r'
-    # The file has been encoded using utf8
     raw = open(chapter_file, 'r', encoding='utf-8-sig')
 
     # Create Beautiful soup object
-    # Parameters: file, parser
-    # html.parser is the built-in parser
     soup = BeautifulSoup(raw, 'html.parser')
 
     # Close the file
     raw.close()
 
-    # The chapter content is located in a div element
-    # with id = 'content'
-    # Only one element with this item property, use find()
+    # The chapter content is located in a div element with id = 'content'
     soup = soup.find(id='content')
 
     # Create new variable containing only text
     text = soup.text
 
-    # delete the last line
+    # delete redundant website messages
     text = text.replace('本文来自 轻小说文库(http://www.wenku8.com)', '').replace(
         '最新最全的日本动漫轻小说 轻小说文库(http://www.wenku8.com) 为你一网打尽！', '')
 
     # Prevent wrong formatting, strip white spaces
     text = text.lstrip().rstrip()
 
+    # Replace next line characters with br tags
     text = text.replace('\n\n\n', '\n<br/>\n<br/>\n')
 
-    # Write text to the final HTML file
+    # Write text to HTML file
     file = open(chapter_file, 'w', encoding='utf-8-sig')
 
-    # In the very first line, we have to write the HTML with the xmlns Attribute.
-    # This is required since, by convention, epub files are using the XHTML file format
+    # In the first line, write the HTML with the xmlns Attribute.
+    # By convention, epub files are using the XHTML file format
     file.write('<html xmlns="http://www.w3.org/1999/xhtml">')
 
     # Place chapter name inside title tags
@@ -434,7 +440,7 @@ def clean_chapter(chapter_file, chapter_name):
     file.write("\n</head>")
 
     # Write the body
-    # Use strong tag on the title
+    # Use h2 tag on the title
     # Placing <p> at the beginning
     file.write("\n<body>")
     file.write("\n<h2>" + chapter_name + "</h2>" + "\n<p>")
@@ -444,20 +450,35 @@ def clean_chapter(chapter_file, chapter_name):
     file.write("\n</p>")
     file.write("\n</body>")
     file.write("\n</html>")
+
+    # Close file
     file.close()
 
 
 def create_epub(title, author, chapter_list):
+    """
+    Create epub file from the retrieved book info and downloaded, cleaned chapters
+
+    @type title: str
+    @param title: volume/book title
+    @type author: str
+    @param author: author name
+    @type chapter_list: dict
+    @param chapter_list: chapter names and file locations
+    """
+
     print("create_epub: starting ...")
 
     # mimetype file (same for every epub)
     file = open("../book/mimetype", 'w')
     file.write("application/epub+zip")
+
+    # Close mimetype file
     file.close()
 
     # container.xml file (same for every epub)
-    # Create file inside folder 'META-INF'
-    # referenced Content.opf, located inside EPUB folder
+    # Inside folder 'META-INF'
+    # referenced Content.opf, located inside OEBPS folder
     file = open("../book/META-INF/container.xml", 'w')
 
     file.write(dedent('''\
@@ -467,6 +488,7 @@ def create_epub(title, author, chapter_list):
         </rootfiles>
     </container>'''))
 
+    # Close container.xml file
     file.close()
 
     # content.opf file
@@ -505,18 +527,12 @@ def create_epub(title, author, chapter_list):
     toc_manifest = '\t\t<item href="toc.ncx" id="ncx" media-type="application/x-dtbncx+xml"/>\n'
     nav_manifest = '\t\t<item href="nav.xhtml" id="nav" media-type="application/xhtml+xml" properties="nav"/>'
 
-    # enumerate(list) is basically the same as range(len(list)), go through the list that contains the html files
-    # i is the loop iterations counter and html is the current html file.
-    # os.path.basename(html): the basename of the file. For example '/foo/bar/' would return 'bar'.
-    # Add a string to manifest every time we go through the for loop.
-    # The first %s will be the file number and the second is the link to the chapter.
-    # Since the chapter files are in the same folder as the content file, we can just use the basename.
-    # In the spine, we will reference each chapter with the id.
-    # In the last line of the loop, write the chapter into the .epub folder
+    # Manifest and spine strings
     manifest = '<item href="cover.jpg" id="cover-img" media-type="image/jpeg" properties="cover-image"/>\n'
     manifest += '\t\t<item href="cover.xhtml" id="cover" media-type="application/xhtml+xml"/>\n'
     spine = '<itemref idref="cover" linear="no"/>\n\t\t<itemref idref="nav"/>\n'
 
+    # Add chapter references to both manifest and spine strings
     for i, chapter in enumerate(chapter_list.values()):
         manifest += '\t\t<item id="chapter_%s" href="chapter_%s.xhtml" media-type="application/xhtml+xml"/>\n' % (
             i + 1, i + 1)
@@ -533,9 +549,10 @@ def create_epub(title, author, chapter_list):
         "manifest": manifest + toc_manifest + nav_manifest,
         "spine": spine})
 
+    # Close content.opf file
     file.close()
 
-    # table of content file
+    # Table of content file 'toc.ncx'
     file = open("../book/OEBPS/toc.ncx", 'w', encoding='utf-8-sig')
 
     toc = dedent("""\
@@ -559,6 +576,7 @@ def create_epub(title, author, chapter_list):
 
     navpoints = ''
 
+    # Add chapter name to table of content
     for i, (chapter_name, chapter) in enumerate(chapter_list.items()):
         navpoints += '\t\t<navPoint id="chapter_%s">\n' % (i + 1)
         navpoints += '\t\t\t<navLabel>\n'
@@ -571,7 +589,7 @@ def create_epub(title, author, chapter_list):
     file.write(toc % {"novelname": title,
                       "author": author,
                       "navpoints": navpoints})
-
+    # Close toc.ncx
     file.close()
 
     # Create nav.xhtml file
@@ -596,6 +614,7 @@ def create_epub(title, author, chapter_list):
     </html>""")
     ol_content = ""
 
+    # Add chapter names
     for i, (chapter_name, chapter) in enumerate(chapter_list.items()):
         ol_content += '\t\t\t\t<li>\n'
         ol_content += '\t\t\t\t\t<a href="chapter_%s.xhtml">%s</a>\n' % (i + 1, chapter_name)
@@ -604,7 +623,11 @@ def create_epub(title, author, chapter_list):
     file.write(nav % {"novelname": title,
                       "ol_content": ol_content})
 
+    # Close nav.xhtml file
     file.close()
+
+    # Create cover.xhtml
+    file = open("../book/OEBPS/cover.xhtml", 'w')
 
     cover_xhtml = dedent("""\
     <?xml version='1.0' encoding='utf-8'?>
@@ -618,17 +641,25 @@ def create_epub(title, author, chapter_list):
         </body>
     </html>""")
 
-    file = open("../book/OEBPS/cover.xhtml", 'w')
-
     file.write(cover_xhtml)
+
+    # Close cover.xhtml
     file.close()
 
+    # Compress '/book' folder and its content to epub file
     compress_epub(title)
 
     print("create_epub: Finish EPUB conversion and download for book '%s'!" % title)
 
 
 def compress_epub(title):
+    """
+    Compress '/book' folder and its content to epub file
+
+    @type title: str
+    @param title: volume/book title
+    """
+
     # Create a zipfile with variable name epub
     epub = zipfile.ZipFile('../epub/' + title + ".epub", "w")
     path = "../book"
