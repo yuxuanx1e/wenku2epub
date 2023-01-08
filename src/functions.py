@@ -354,9 +354,11 @@ def choose_volume(volume_indices, volume_names):
 
     while True:
 
-        if len(chosen_indices) <= 2 and all(0 <= index < len(volume_names) for index in chosen_indices):
-            break
-
+        if all(0 <= index < len(volume_names) for index in chosen_indices):
+            if len(chosen_indices) == 1:
+                break
+            elif len(chosen_indices) == 2 and chosen_indices[0] <= chosen_indices[1]:
+                break
         print("Invalid index number, please choose from 0 to %d. Input must be single number or in the form of "
               "'start-end'" % (len(volume_names) - 1))
         chosen_indices = input("Enter volume index/indices: ")
