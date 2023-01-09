@@ -12,6 +12,7 @@ import shutil
 from textwrap import dedent
 from datetime import datetime
 import zipfile
+import re
 
 
 def create_temp_dir():
@@ -283,6 +284,8 @@ def extract_index(index_url, index_file):
     # Author is located in a div element
     # with id = 'info'
     title = soup.find(id='title').getText().strip()
+    # Remove brackets and its content
+    title = re.sub("[\(\[].*?[\)\]]", "", title)
     author = soup.find(id='info').getText().strip('作者：').strip()
 
     # Find all table elements containing either chapter links or volume names
