@@ -72,8 +72,8 @@ def scrape_book(volume_name, chapter_list, cover_file):
         # Ask user to choose a cover image for the book
         cover_url = choose_cover(image_url)
 
-        # Remove '插图' (last chapter) from the list of chapters
-        chapter_list.popitem()
+        # Remove '插图' chapter from the list of chapters
+        del chapter_list['插图']
 
     else:
         # Ask user to manually enter URL to the cover image
