@@ -1,7 +1,7 @@
 # This is the main program to generate epub from wenku8
 # Author: Yuxuan Xie
-# Version: 1
-# Date: 08/ 01/ 2023
+# Version: 2
+# Date: 20/ 03/ 2024
 
 # Import Dependencies
 import functions
@@ -11,7 +11,7 @@ import os
 def main():
     print("main: Starting wenku2epub programme ...")
 
-    # Change current working directory
+    # Change to current working directory
     path = os.getcwd()
     os.chdir(path)
 
