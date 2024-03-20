@@ -12,7 +12,7 @@ def main():
     print("main: Starting wenku2epub programme ...")
 
     # Change current working directory
-    path = 'C:/Users/yuxua/OneDrive - University College Dublin/Documents/wenku2epub/src'
+    path = os.getcwd()
     os.chdir(path)
 
     # Ask user to enter the URL to the index page of the book
