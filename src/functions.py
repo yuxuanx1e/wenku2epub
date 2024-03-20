@@ -1,10 +1,11 @@
 # Contains the functions used by main.py
 # Author: Yuxuan Xie
-# Version: 1
-# Date: 12/ 12/ 2022
+# Version: 2: Change requests to cloudscraper, add exponential backoff to fetch html file
+# Date: 20/ 03/ 2024
 
 # Import dependencies
-import requests
+#import requests
+import cloudscraper
 from bs4 import BeautifulSoup
 import validators
 import os
@@ -13,7 +14,10 @@ from textwrap import dedent
 from datetime import datetime
 import zipfile
 import re
+import time
 
+# Global variables
+scraper = cloudscraper.create_scraper()  # returns a CloudScraper instance
 
 def create_temp_dir():
     """
@@ -103,16 +107,39 @@ def download_html(html_url, html_file):
     """
 
     print("download_html: Fetching %s ..." % html_url)
+    
+    max_retries=5
+    base_retry_interval=2
+    
+    retries = 0
+    retry_interval = base_retry_interval
+    
+    while retries < max_retries:
+        try:
+            # page stores website's HTML code
+            response = scraper.get(html_url)
 
-    # page stores website's HTML code
-    page = requests.get(html_url)
+            # Success 
+            if response.status_code == 200:
+                break
+            # Too many requests
+            elif response.status_code == 429:
+                print(f"download_html: Too many requests. Retrying in {retry_interval} seconds...")
+                time.sleep(retry_interval)
+                retry_interval *= 2  # Exponential backoff
 
-    # Check the status of get() method, see if download was successful
-    try:
-        page.raise_for_status()
-    except Exception as exc:
-        print('download_html: There was a problem: %s' % exc)  # Print error msg
+            # Failed to fetch the page
+            else:
+                print(f"download_html: Failed to fetch URL: {url}. Status code: {response.status_code}")
+                return None
+        except Exception as e:
+            print(f"download_html: Error occurred: {str(e)}")
+        retries += 1
+    if retries >= max_retries: 
+        print(f"download_html: Maximum retries reached. Could not fetch URL: {url}")
+        return None
 
+    page = response
     page.encoding = 'gbk'  # utf-8 decoding didn't work...
     page = page.text
 
@@ -194,7 +221,7 @@ def is_url_image(image_url):
                       'Safari/537.36'}
 
     image_formats = ("image/png", "image/jpeg", "image/jpg")
-    r = requests.head(image_url, headers=headers)
+    r = scraper.head(image_url, headers=headers)
     if r.headers["content-type"] in image_formats:
         print("is_url_image: Success! Entered URL leads to a " + r.headers["content-type"])
         return True
@@ -220,7 +247,7 @@ def download_image(image_url, image_file):
         'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.76 '
                       'Safari/537.36'}
 
-    response = requests.get(image_url, headers=headers)
+    response = scraper.get(image_url, headers=headers)
     if response.ok:
         img_data = response.content
         with open(image_file, 'wb') as handler:
@@ -251,7 +278,9 @@ def extract_images(image_page):
     image_url = []
 
     # Find url to the cover image
-    for img in soup.findAll('img'):
+    #image_url = [a['href'] for a in soup.find_all('a', href=re.compile('http.*\.jpg'))]
+    
+    for img in soup.find_all('img'):
         link = img.get('src')
         image_url.append(link)
 
@@ -285,7 +314,7 @@ def extract_index(index_url, index_file):
     # with id = 'info'
     title = soup.find(id='title').getText().strip()
     # Remove brackets and its content
-    title = re.sub("[\(\[].*?[\)\]]", "", title)
+    title = re.sub(r"[\(\[].*?[\)\]]", "", title)
     author = soup.find(id='info').getText().strip('作者：').strip()
 
     # Find all table elements containing either chapter links or volume names
@@ -309,7 +338,7 @@ def extract_index(index_url, index_file):
     volume_indices.append((len(table_elem)))
 
     # Get volume names
-    volume_names = [vol.contents[0] for vol in soup.findAll("td", attrs={'class': "vcss"})]
+    volume_names = [vol.contents[0] for vol in soup.find_all("td", attrs={'class': "vcss"})]
 
     # Multiple volumes found
     if len(volume_names) > 1:
@@ -663,6 +692,10 @@ def compress_epub(title):
     @param title: volume/book title
     """
 
+    epub_folder = "../epub/"
+    # Check if folder exists, if not create it
+    os.makedirs(epub_folder, exist_ok=True)
+    
     # Create a zipfile with variable name epub
     epub = zipfile.ZipFile('../epub/' + title + ".epub", "w")
     path = "../book"
