@@ -3,4 +3,5 @@
 /temp/
 /epub/
 /venv/
+/src/__pycache__/
 
