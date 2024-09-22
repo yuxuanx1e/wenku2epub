@@ -458,6 +458,9 @@ def clean_chapter(chapter_file, chapter_name):
     # Replace next line characters with br tags
     text = text.replace('\n\n\n', '\n<br/>\n<br/>\n')
 
+    # Replace special character '&' with '&amp;'
+    text = text.replace('&', '&amp;')
+
     # Write text to HTML file
     file = open(chapter_file, 'w', encoding='utf-8-sig')
 
@@ -639,6 +642,9 @@ def create_epub(title, author, chapter_list):
                 <h2>%(novelname)s</h2>
             
                 <ol>
+                    <li>
+                        <a href="cover.xhtml">Cover</a>
+                    </li>
     %(ol_content)s
                 </ol>
             </nav>
