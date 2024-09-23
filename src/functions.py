@@ -643,7 +643,7 @@ def create_epub(title, author, chapter_list):
             
                 <ol>
                     <li>
-                        <a href="cover.xhtml">Cover</a>
+                        <a href="cover.xhtml">封面</a>
                     </li>
     %(ol_content)s
                 </ol>
