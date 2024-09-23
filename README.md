@@ -1,7 +1,7 @@
 # wenku2epub
 Convert light novels on <a href ='https://www.wenku8.net/'>wenku8.net</a> to EPUB format.
 
-Inspired by <a href='http://wenku8.herokuapp.com/'>wenku8.herokuapp.com</a>, I decided to write my own Python script to automatically scrape book contents from wenku8 and convert to EPUB format. 
+Inspired by <a href='https://github.com/chiro2001/Wenku8ToEpub-Online'>Wenku8ToEpub-Online</a>, I decided to write my own Python script to automatically scrape book contents from wenku8 and convert to EPUB format. 
 
 ## Installation
 ### 1. Clone this repo
