@@ -12,8 +12,17 @@ def main():
     print("main: Starting wenku2epub programme ...")
 
     # Change to current working directory
-    path = os.getcwd()
-    os.chdir(path)
+    #path = os.getcwd()
+    #os.chdir(path)
+
+    # Get the absolute path of the current script
+    current_script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # Change the current working directory to the script's directory
+    os.chdir(current_script_dir)
+
+    # Print the current working directory to confirm
+    print(f"Current working directory is now: {os.getcwd()}")
 
     # Ask user to enter the URL to the index page of the book
     index_url = functions.get_index_url()

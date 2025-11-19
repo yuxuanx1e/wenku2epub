@@ -6,6 +6,9 @@
 # Import dependencies
 #import requests
 import cloudscraper
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import WebDriverException
 from bs4 import BeautifulSoup
 import validators
 import os
@@ -93,67 +96,62 @@ def scrape_book(volume_name, chapter_list, cover_file):
     return chapter_list
 
 
+
+
+
 def download_html(html_url, html_file):
     """
-    Create a variable that stores the HTML code of the website
-    Create a file that has the same name as the "html_file" parameter
-    Write the HTML code to the file we've created
-    Close the file
-    
-    @type html_url: str
-    @param html_url: URL of page to be scraped
-    @type html_file: str
-    @param html_file: html temp file name
+    Downloads a page using Selenium (works even when Cloudscraper/requests are blocked)
+    Saves the resulting HTML to html_file.
     """
 
     print("download_html: Fetching %s ..." % html_url)
-    
-    max_retries=5
-    base_retry_interval=2
-    
+
+    max_retries = 5
+    base_retry_interval = 2
+
     retries = 0
     retry_interval = base_retry_interval
-    
+
+    # --- Selenium setup ---
+    options = Options()
+    options.add_argument("--headless=new")   # Try headless, fallback if Cloudflare blocks it
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("start-maximized")
+
     while retries < max_retries:
         try:
-            # page stores website's HTML code
-            response = scraper.get(html_url)
+            driver = webdriver.Chrome(options=options)
 
-            # Success 
-            if response.status_code == 200:
-                break
-            # Too many requests
-            elif response.status_code == 429:
-                print(f"download_html: Too many requests. Retrying in {retry_interval} seconds...")
-                time.sleep(retry_interval)
-                retry_interval *= 2  # Exponential backoff
+            driver.get(html_url)
 
-            # Failed to fetch the page
-            else:
-                print(f"download_html: Failed to fetch URL: {url}. Status code: {response.status_code}")
-                return None
+            # Wait for Cloudflare "Checking your browser" page to finish
+            time.sleep(5)
+
+            # Retrieve HTML
+            page = driver.page_source
+            driver.quit()
+
+            # Write to file
+            with open(html_file, "w", encoding="utf-8-sig") as f:
+                f.write(page)
+
+            print("download_html: Finish writing to %s" % html_file)
+            return html_file
+
+        except WebDriverException as e:
+            print(f"download_html: WebDriver error: {e}")
         except Exception as e:
-            print(f"download_html: Error occurred: {str(e)}")
+            print(f"download_html: Error occurred: {e}")
+
         retries += 1
-    if retries >= max_retries: 
-        print(f"download_html: Maximum retries reached. Could not fetch URL: {url}")
-        return None
+        print(f"download_html: Retry {retries}/{max_retries} in {retry_interval} seconds...")
+        time.sleep(retry_interval)
+        retry_interval *= 2
 
-    page = response
-    page.encoding = 'gbk'  # utf-8 decoding didn't work...
-    page = page.text
+    print("download_html: Maximum retries reached. Failed.")
+    return None
 
-    # Open file in write mode 'w'
-    # ut8 encoding is most reliable
-    file = open(html_file, 'w', encoding='utf-8-sig')
-
-    # write the content of page variable to the created file
-    file.write(page)
-
-    # close the files
-    file.close()
-
-    print("download_html: Finish writing to %s" % html_file)
 
 
 def choose_cover(image_url):
